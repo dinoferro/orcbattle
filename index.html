@@ -2,41 +2,56 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AR Battle Demo</title>
-  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>WebXR + Three.js AR Battle</title>
   <style>
-    body{margin:0;font-family:system-ui;background:#000;color:#fff;overflow:hidden}
-    model-viewer{width:100vw;height:100vh;background:#000}
-    .hud{position:fixed;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;pointer-events:none}
-    .panel{background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px;width:45%;pointer-events:auto}
+    html,body{margin:0;height:100%;overflow:hidden;background:#000;color:#fff;font-family:system-ui}
+    #uiTop{
+      position:fixed;top:10px;left:10px;right:10px;display:flex;gap:10px;justify-content:space-between;pointer-events:none;z-index:10
+    }
+    .panel{
+      width:48%;
+      background:rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:14px;
+      padding:10px 12px;
+      pointer-events:auto;
+      backdrop-filter: blur(8px);
+    }
     .name{font-weight:800;margin-bottom:6px}
-    .bar{height:12px;background:rgba(255,255,255,.15);border-radius:999px;overflow:hidden}
+    .bar{height:12px;background:rgba(255,255,255,.14);border-radius:999px;overflow:hidden}
     .fill{height:100%;width:100%;background:#3ddc84;transition:width .2s ease}
-    .hp{font-size:12px;margin-top:4px;opacity:.85}
-    .log{position:fixed;bottom:80px;left:10px;right:10px;max-height:120px;overflow:auto;background:rgba(0,0,0,.5);
-      border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:8px;font-size:13px;pointer-events:auto}
-    .actions{position:fixed;bottom:10px;left:10px;right:10px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:auto}
-    button{flex:1;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.65);color:#fff;font-weight:800;cursor:pointer}
-    button:disabled{opacity:.4;cursor:not-allowed}
-    .note{position:fixed;top:56px;left:10px;right:10px;font-size:12px;opacity:.8}
+    .hp{font-size:12px;opacity:.9;margin-top:6px}
+
+    #log{
+      position:fixed;left:10px;right:10px;bottom:82px;max-height:140px;overflow:auto;
+      background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.14);border-radius:14px;
+      padding:10px 12px;font-size:13px;z-index:10;pointer-events:auto
+    }
+    #uiBottom{
+      position:fixed;left:10px;right:10px;bottom:10px;display:flex;gap:8px;flex-wrap:wrap;z-index:10
+    }
+    button{
+      flex:1;min-width:120px;
+      padding:12px 14px;border-radius:14px;
+      border:1px solid rgba(255,255,255,.16);
+      background:rgba(0,0,0,.6);
+      color:#fff;font-weight:800;cursor:pointer
+    }
+    button:disabled{opacity:.45;cursor:not-allowed}
+    #startAR{
+      position:fixed;left:10px;right:10px;top:62px;z-index:10
+    }
+    #status{
+      position:fixed;left:10px;right:10px;top:110px;z-index:10;
+      font-size:12px;opacity:.9
+    }
+    canvas{display:block}
   </style>
 </head>
+
 <body>
-
-  <!-- Orco/monstruo GLB remoto (sin descargar) -->
-  <model-viewer id="mv"
-    src="https://modelviewer.dev/shared-assets/models/Monster.glb"
-    alt="Orco / Monstruo"
-    camera-controls
-    shadow-intensity="0.7"
-    exposure="1"
-    ar
-    ar-modes="webxr scene-viewer"
-    ar-scale="auto">
-  </model-viewer>
-
-  <div class="hud">
+  <div id="uiTop">
     <div class="panel">
       <div class="name">🧙‍♂️ Vos</div>
       <div class="bar"><div id="pFill" class="fill"></div></div>
@@ -49,92 +64,271 @@
     </div>
   </div>
 
-  <div class="note" id="note"></div>
-  <div id="log" class="log"></div>
+  <div id="startAR">
+    <button id="btnStart">📷 Iniciar AR</button>
+  </div>
+  <div id="status"></div>
 
-  <div class="actions">
+  <div id="log"></div>
+
+  <div id="uiBottom">
     <button id="btnMagic">✨ Magia</button>
     <button id="btnHit">🪄 Golpe</button>
     <button id="btnDef">🛡 Defender</button>
     <button id="btnReset">🔁 Reiniciar</button>
   </div>
 
-<script>
-  // Detect simple iOS
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const note = document.getElementById('note');
+<script type="module">
+  import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
-  // En iOS, desactivamos quick-look para que no te saque del juego.
-  if (isIOS) {
-    note.textContent = "En iPhone: el AR de Safari abre Quick Look y no permite UI encima. Para probar el combate, jugá en modo 3D (sin AR) o probá en Android para AR interactivo.";
-  } else {
-    note.textContent = "En Android (Chrome): tocá el botón AR para colocar el orco y luego usá los botones para atacar.";
-  }
-
-  const state = { pMax:100, p:100, eMax:120, e:120, turn:true, defending:false, over:false };
-
+  // ---- UI ----
   const pFill = document.getElementById("pFill");
   const eFill = document.getElementById("eFill");
   const pHp = document.getElementById("pHp");
   const eHp = document.getElementById("eHp");
-  const log = document.getElementById("log");
+  const logEl = document.getElementById("log");
+  const statusEl = document.getElementById("status");
 
+  const btnStart = document.getElementById("btnStart");
   const btnMagic = document.getElementById("btnMagic");
   const btnHit = document.getElementById("btnHit");
   const btnDef = document.getElementById("btnDef");
   const btnReset = document.getElementById("btnReset");
 
+  function logLine(t){
+    const d = document.createElement("div");
+    d.textContent = t;
+    logEl.appendChild(d);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
   const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
   const rnd = (min,max)=>Math.floor(Math.random()*(max-min+1))+min;
 
-  function logLine(t){ const d=document.createElement("div"); d.textContent=t; log.appendChild(d); log.scrollTop=log.scrollHeight; }
-  function update(){
+  const state = {
+    pMax:100, p:100,
+    eMax:120, e:120,
+    turn:true,
+    defending:false,
+    over:false,
+    placed:false
+  };
+
+  function updateUI(){
     pFill.style.width = (state.p/state.pMax*100)+"%";
     eFill.style.width = (state.e/state.eMax*100)+"%";
     pHp.textContent = `HP: ${state.p}/${state.pMax}`;
     eHp.textContent = `HP: ${state.e}/${state.eMax}`;
-    const dis = !state.turn || state.over;
-    btnMagic.disabled = dis; btnHit.disabled = dis; btnDef.disabled = dis;
+
+    const disabled = !state.turn || state.over || !state.placed;
+    btnMagic.disabled = disabled;
+    btnHit.disabled = disabled;
+    btnDef.disabled = disabled;
   }
-  function end(win){ state.over=true; logLine(win?"🏆 Ganaste":"💀 Perdiste"); update(); }
+
+  function endGame(win){
+    state.over = true;
+    logLine(win ? "🏆 Ganaste." : "💀 Perdiste.");
+    updateUI();
+  }
 
   function enemyTurn(){
-    state.turn=false; update();
+    state.turn = false;
+    updateUI();
     setTimeout(()=>{
       if(state.over) return;
       let dmg = rnd(10,20);
-      if(state.defending){ dmg=Math.floor(dmg/2); state.defending=false; logLine("🛡 Defensa: daño reducido"); }
-      state.p=clamp(state.p-dmg,0,state.pMax);
-      logLine(`👹 El orco ataca y quita ${dmg} HP`);
-      if(state.p<=0) return end(false);
-      state.turn=true; update();
-    },700);
+      if(state.defending){
+        dmg = Math.floor(dmg/2);
+        state.defending = false;
+        logLine("🛡 Defensa activa: daño reducido.");
+      }
+      state.p = clamp(state.p - dmg, 0, state.pMax);
+      logLine(`👹 El orco ataca y te quita ${dmg} HP.`);
+      if(state.p <= 0) return endGame(false);
+      state.turn = true;
+      updateUI();
+    }, 700);
   }
 
-  function attack(kind){
-    if(!state.turn||state.over) return;
+  function playerAttack(kind){
+    if(!state.turn || state.over || !state.placed) return;
     const dmg = kind==="magic" ? rnd(18,32) : rnd(10,16);
-    logLine(kind==="magic" ? `✨ Magia: ${dmg} daño` : `🪄 Golpe: ${dmg} daño`);
-    state.e=clamp(state.e-dmg,0,state.eMax);
-    update();
-    if(state.e<=0) return end(true);
+    logLine(kind==="magic" ? `✨ Magia: ${dmg} daño.` : `🪄 Golpe: ${dmg} daño.`);
+    state.e = clamp(state.e - dmg, 0, state.eMax);
+    updateUI();
+    if(state.e <= 0) return endGame(true);
     enemyTurn();
   }
 
-  btnMagic.onclick=()=>attack("magic");
-  btnHit.onclick=()=>attack("hit");
-  btnDef.onclick=()=>{
-    if(!state.turn||state.over) return;
-    state.defending=true;
-    logLine("🛡 Te defendés");
+  btnMagic.onclick = ()=>playerAttack("magic");
+  btnHit.onclick = ()=>playerAttack("hit");
+  btnDef.onclick = ()=>{
+    if(!state.turn || state.over || !state.placed) return;
+    state.defending = true;
+    logLine("🛡 Te defendés.");
     enemyTurn();
   };
-  btnReset.onclick=()=>{
-    state.p=state.pMax; state.e=state.eMax; state.turn=true; state.defending=false; state.over=false;
-    log.innerHTML=""; logLine("⚔ Combate iniciado."); update();
+
+  btnReset.onclick = ()=>{
+    state.p = state.pMax; state.e = state.eMax;
+    state.turn = true; state.defending = false; state.over = false;
+    logEl.innerHTML = "";
+    logLine("⚔ Listo. Colocá el orco y empezá a atacar.");
+    updateUI();
   };
 
+  // ---- Three.js + WebXR (AR) ----
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.xr.enabled = true;
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera();
+
+  // Luz simple
+  const light1 = new THREE.HemisphereLight(0xffffff, 0x222222, 1.0);
+  scene.add(light1);
+
+  // Retícula (hit test)
+  const reticleGeo = new THREE.RingGeometry(0.08, 0.10, 32).rotateX(-Math.PI/2);
+  const reticleMat = new THREE.MeshBasicMaterial({ color: 0x00ff99 });
+  const reticle = new THREE.Mesh(reticleGeo, reticleMat);
+  reticle.matrixAutoUpdate = false;
+  reticle.visible = false;
+  scene.add(reticle);
+
+  // “Orco” placeholder: cápsula + esfera (cambiable por GLB luego)
+  const orcGroup = new THREE.Group();
+
+  const body = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.12, 0.25, 8, 16),
+    new THREE.MeshStandardMaterial({ color: 0x2ecc71, roughness: 0.9, metalness: 0.0 })
+  );
+  body.position.y = 0.25;
+  orcGroup.add(body);
+
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.12, 18, 18),
+    new THREE.MeshStandardMaterial({ color: 0x27ae60, roughness: 0.9, metalness: 0.0 })
+  );
+  head.position.y = 0.48;
+  orcGroup.add(head);
+
+  // “arma” simple
+  const club = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.02, 0.03, 0.28, 12),
+    new THREE.MeshStandardMaterial({ color: 0x8e5a2a, roughness: 1.0, metalness: 0.0 })
+  );
+  club.rotation.z = Math.PI/3;
+  club.position.set(0.18, 0.32, 0);
+  orcGroup.add(club);
+
+  orcGroup.visible = false;
+  scene.add(orcGroup);
+
+  // WebXR helpers
+  let hitTestSource = null;
+  let hitTestSourceRequested = false;
+  let referenceSpace = null;
+
+  async function startAR(){
+    if(!navigator.xr){
+      statusEl.textContent = "❌ WebXR no disponible. Probá en Chrome Android.";
+      return;
+    }
+
+    // Requiere HTTPS (GitHub Pages OK)
+    const supported = await navigator.xr.isSessionSupported("immersive-ar").catch(()=>false);
+    if(!supported){
+      statusEl.textContent = "❌ AR no soportado en este dispositivo/navegador. (Android + Chrome + ARCore)";
+      return;
+    }
+
+    const session = await navigator.xr.requestSession("immersive-ar", {
+      requiredFeatures: ["hit-test"],
+      optionalFeatures: ["dom-overlay"],
+      domOverlay: { root: document.body }
+    });
+
+    renderer.xr.setReferenceSpaceType("local");
+    await renderer.xr.setSession(session);
+
+    statusEl.textContent = "✅ AR iniciado. Apuntá al piso y tocá la pantalla para colocar el orco.";
+    btnStart.disabled = true;
+
+    session.addEventListener("end", ()=>{
+      btnStart.disabled = false;
+      statusEl.textContent = "";
+      hitTestSource = null;
+      hitTestSourceRequested = false;
+      reticle.visible = false;
+      orcGroup.visible = false;
+      state.placed = false;
+      updateUI();
+    });
+
+    // Colocar orco al tocar pantalla
+    window.addEventListener("click", onTapToPlace, { passive:true });
+  }
+
+  function onTapToPlace(){
+    if(!reticle.visible) return;
+    orcGroup.visible = true;
+    orcGroup.position.setFromMatrixPosition(reticle.matrix);
+    // Orientación básica
+    orcGroup.quaternion.setFromRotationMatrix(reticle.matrix);
+    state.placed = true;
+    logLine("👹 Orco colocado. ¡Atacalo!");
+    updateUI();
+  }
+
+  btnStart.onclick = startAR;
+
+  renderer.setAnimationLoop((timestamp, frame)=>{
+    const session = renderer.xr.getSession();
+    if(frame){
+      const refSpace = renderer.xr.getReferenceSpace();
+
+      if(!hitTestSourceRequested){
+        hitTestSourceRequested = true;
+        session.requestReferenceSpace("viewer").then((viewerSpace)=>{
+          referenceSpace = viewerSpace;
+          session.requestHitTestSource({ space: viewerSpace }).then((source)=>{
+            hitTestSource = source;
+          });
+        });
+      }
+
+      if(hitTestSource){
+        const hitTestResults = frame.getHitTestResults(hitTestSource);
+        if(hitTestResults.length){
+          const hit = hitTestResults[0];
+          const pose = hit.getPose(refSpace);
+          reticle.visible = true;
+          reticle.matrix.fromArray(pose.transform.matrix);
+        } else {
+          reticle.visible = false;
+        }
+      }
+    }
+
+    // Animación simple del “orco”
+    if(orcGroup.visible && !state.over){
+      orcGroup.rotation.y += 0.005;
+    }
+
+    renderer.render(scene, camera);
+  });
+
+  window.addEventListener("resize", ()=>{
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // Init
   btnReset.click();
+  updateUI();
 </script>
 </body>
 </html>

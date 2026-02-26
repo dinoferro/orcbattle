@@ -3,135 +3,45 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Juego AR por Turnos</title>
-
-  <!-- Model Viewer -->
+  <title>AR Battle Demo</title>
   <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
-
   <style>
-    body {
-      margin: 0;
-      font-family: system-ui, Arial, sans-serif;
-      background: #000;
-      color: #fff;
-      overflow: hidden;
-    }
-
-    model-viewer {
-      width: 100vw;
-      height: 100vh;
-      background: #000;
-    }
-
-    .hud {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      right: 10px;
-      display: flex;
-      justify-content: space-between;
-      pointer-events: none;
-    }
-
-    .panel {
-      background: rgba(0,0,0,0.6);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 12px;
-      padding: 10px;
-      width: 45%;
-      pointer-events: auto;
-    }
-
-    .name {
-      font-weight: 700;
-      margin-bottom: 6px;
-    }
-
-    .bar {
-      height: 12px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 999px;
-      overflow: hidden;
-    }
-
-    .fill {
-      height: 100%;
-      width: 100%;
-      background: #3ddc84;
-      transition: width 0.2s ease;
-    }
-
-    .hp {
-      font-size: 12px;
-      margin-top: 4px;
-      opacity: 0.85;
-    }
-
-    .actions {
-      position: fixed;
-      bottom: 10px;
-      left: 10px;
-      right: 10px;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    button {
-      flex: 1;
-      padding: 12px;
-      border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.2);
-      background: rgba(0,0,0,0.65);
-      color: #fff;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .log {
-      position: fixed;
-      bottom: 80px;
-      left: 10px;
-      right: 10px;
-      max-height: 120px;
-      overflow-y: auto;
-      background: rgba(0,0,0,0.5);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 12px;
-      padding: 8px;
-      font-size: 13px;
-    }
+    body{margin:0;font-family:system-ui;background:#000;color:#fff;overflow:hidden}
+    model-viewer{width:100vw;height:100vh;background:#000}
+    .hud{position:fixed;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;pointer-events:none}
+    .panel{background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px;width:45%;pointer-events:auto}
+    .name{font-weight:800;margin-bottom:6px}
+    .bar{height:12px;background:rgba(255,255,255,.15);border-radius:999px;overflow:hidden}
+    .fill{height:100%;width:100%;background:#3ddc84;transition:width .2s ease}
+    .hp{font-size:12px;margin-top:4px;opacity:.85}
+    .log{position:fixed;bottom:80px;left:10px;right:10px;max-height:120px;overflow:auto;background:rgba(0,0,0,.5);
+      border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:8px;font-size:13px;pointer-events:auto}
+    .actions{position:fixed;bottom:10px;left:10px;right:10px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:auto}
+    button{flex:1;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.65);color:#fff;font-weight:800;cursor:pointer}
+    button:disabled{opacity:.4;cursor:not-allowed}
+    .note{position:fixed;top:56px;left:10px;right:10px;font-size:12px;opacity:.8}
   </style>
 </head>
-
 <body>
 
-  <!-- MODELO 3D (funciona sin descargar nada) -->
-  <model-viewer
+  <!-- Orco/monstruo GLB remoto (sin descargar) -->
+  <model-viewer id="mv"
     src="https://modelviewer.dev/shared-assets/models/Monster.glb"
-    ios-src="https://modelviewer.dev/shared-assets/models/Astronaut.usdz"
-    alt="Orco AR"
-    ar
-    ar-modes="webxr scene-viewer quick-look"
-    ar-scale="auto"
+    alt="Orco / Monstruo"
     camera-controls
     shadow-intensity="0.7"
-    exposure="1">
+    exposure="1"
+    ar
+    ar-modes="webxr scene-viewer"
+    ar-scale="auto">
   </model-viewer>
 
-  <!-- HUD -->
   <div class="hud">
     <div class="panel">
       <div class="name">🧙‍♂️ Vos</div>
       <div class="bar"><div id="pFill" class="fill"></div></div>
       <div id="pHp" class="hp"></div>
     </div>
-
     <div class="panel">
       <div class="name">👹 Orco</div>
       <div class="bar"><div id="eFill" class="fill"></div></div>
@@ -139,9 +49,9 @@
     </div>
   </div>
 
+  <div class="note" id="note"></div>
   <div id="log" class="log"></div>
 
-  <!-- BOTONES -->
   <div class="actions">
     <button id="btnMagic">✨ Magia</button>
     <button id="btnHit">🪄 Golpe</button>
@@ -150,13 +60,18 @@
   </div>
 
 <script>
-  const state = {
-    pMax: 100, p: 100,
-    eMax: 120, e: 120,
-    turn: true,
-    defending: false,
-    over: false
-  };
+  // Detect simple iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const note = document.getElementById('note');
+
+  // En iOS, desactivamos quick-look para que no te saque del juego.
+  if (isIOS) {
+    note.textContent = "En iPhone: el AR de Safari abre Quick Look y no permite UI encima. Para probar el combate, jugá en modo 3D (sin AR) o probá en Android para AR interactivo.";
+  } else {
+    note.textContent = "En Android (Chrome): tocá el botón AR para colocar el orco y luego usá los botones para atacar.";
+  }
+
+  const state = { pMax:100, p:100, eMax:120, e:120, turn:true, defending:false, over:false };
 
   const pFill = document.getElementById("pFill");
   const eFill = document.getElementById("eFill");
@@ -169,107 +84,57 @@
   const btnDef = document.getElementById("btnDef");
   const btnReset = document.getElementById("btnReset");
 
-  function clamp(v, min, max) {
-    return Math.max(min, Math.min(max, v));
-  }
+  const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+  const rnd = (min,max)=>Math.floor(Math.random()*(max-min+1))+min;
 
-  function rnd(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-  }
-
-  function logLine(text) {
-    const d = document.createElement("div");
-    d.textContent = text;
-    log.appendChild(d);
-    log.scrollTop = log.scrollHeight;
-  }
-
-  function updateUI() {
-    pFill.style.width = (state.p / state.pMax * 100) + "%";
-    eFill.style.width = (state.e / state.eMax * 100) + "%";
-
+  function logLine(t){ const d=document.createElement("div"); d.textContent=t; log.appendChild(d); log.scrollTop=log.scrollHeight; }
+  function update(){
+    pFill.style.width = (state.p/state.pMax*100)+"%";
+    eFill.style.width = (state.e/state.eMax*100)+"%";
     pHp.textContent = `HP: ${state.p}/${state.pMax}`;
     eHp.textContent = `HP: ${state.e}/${state.eMax}`;
+    const dis = !state.turn || state.over;
+    btnMagic.disabled = dis; btnHit.disabled = dis; btnDef.disabled = dis;
+  }
+  function end(win){ state.over=true; logLine(win?"🏆 Ganaste":"💀 Perdiste"); update(); }
 
-    const disabled = !state.turn || state.over;
-    btnMagic.disabled = disabled;
-    btnHit.disabled = disabled;
-    btnDef.disabled = disabled;
+  function enemyTurn(){
+    state.turn=false; update();
+    setTimeout(()=>{
+      if(state.over) return;
+      let dmg = rnd(10,20);
+      if(state.defending){ dmg=Math.floor(dmg/2); state.defending=false; logLine("🛡 Defensa: daño reducido"); }
+      state.p=clamp(state.p-dmg,0,state.pMax);
+      logLine(`👹 El orco ataca y quita ${dmg} HP`);
+      if(state.p<=0) return end(false);
+      state.turn=true; update();
+    },700);
   }
 
-  function endGame(win) {
-    state.over = true;
-    logLine(win ? "🏆 Ganaste el combate" : "💀 Fuiste derrotado");
-    updateUI();
-  }
-
-  function enemyTurn() {
-    state.turn = false;
-    updateUI();
-
-    setTimeout(() => {
-      if (state.over) return;
-
-      let dmg = rnd(10, 20);
-      if (state.defending) {
-        dmg = Math.floor(dmg / 2);
-        state.defending = false;
-        logLine("🛡 Defensa activa, daño reducido");
-      }
-
-      state.p = clamp(state.p - dmg, 0, state.pMax);
-      logLine(`👹 El orco te ataca y quita ${dmg} HP`);
-
-      if (state.p <= 0) return endGame(false);
-
-      state.turn = true;
-      updateUI();
-    }, 700);
-  }
-
-  function attack(type) {
-    if (!state.turn || state.over) return;
-
-    let dmg = type === "magic" ? rnd(18, 32) : rnd(10, 16);
-    logLine(type === "magic"
-      ? `✨ Lanzás magia y hacés ${dmg} daño`
-      : `🪄 Golpeás y hacés ${dmg} daño`);
-
-    state.e = clamp(state.e - dmg, 0, state.eMax);
-    updateUI();
-
-    if (state.e <= 0) return endGame(true);
-
+  function attack(kind){
+    if(!state.turn||state.over) return;
+    const dmg = kind==="magic" ? rnd(18,32) : rnd(10,16);
+    logLine(kind==="magic" ? `✨ Magia: ${dmg} daño` : `🪄 Golpe: ${dmg} daño`);
+    state.e=clamp(state.e-dmg,0,state.eMax);
+    update();
+    if(state.e<=0) return end(true);
     enemyTurn();
   }
 
-  btnMagic.onclick = () => attack("magic");
-  btnHit.onclick = () => attack("hit");
-  btnDef.onclick = () => {
-    if (!state.turn || state.over) return;
-    state.defending = true;
+  btnMagic.onclick=()=>attack("magic");
+  btnHit.onclick=()=>attack("hit");
+  btnDef.onclick=()=>{
+    if(!state.turn||state.over) return;
+    state.defending=true;
     logLine("🛡 Te defendés");
     enemyTurn();
   };
-
-  btnReset.onclick = () => {
-    state.p = state.pMax;
-    state.e = state.eMax;
-    state.turn = true;
-    state.defending = false;
-    state.over = false;
-    log.innerHTML = "";
-    logLine("⚔ Combate iniciado. Tocá AR y atacá.");
-    updateUI();
+  btnReset.onclick=()=>{
+    state.p=state.pMax; state.e=state.eMax; state.turn=true; state.defending=false; state.over=false;
+    log.innerHTML=""; logLine("⚔ Combate iniciado."); update();
   };
 
   btnReset.click();
-</script>
-
-</body>
-</html>
-
-  reset();
 </script>
 </body>
 </html>

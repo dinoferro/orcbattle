@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AR Battle Demo</title>
+
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+
+  <style>
+    body{margin:0;font-family:system-ui;background:#000;color:#fff;overflow:hidden}
+    model-viewer{width:100vw;height:100vh;background:#000}
+    .ui{position:fixed;left:12px;right:12px;top:12px;display:flex;gap:12px;align-items:flex-start;justify-content:space-between;pointer-events:none}
+    .panel{background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.12);backdrop-filter: blur(8px);
+      border-radius:14px;padding:10px 12px;min-width:160px;pointer-events:auto}
+    .title{font-weight:800;margin-bottom:6px;font-size:14px}
+    .bar{height:12px;background:rgba(255,255,255,.12);border-radius:999px;overflow:hidden}
+    .fill{height:100%;width:100%}
+    .hp{font-size:12px;opacity:.9;margin-top:6px}
+    .actions{position:fixed;left:12px;right:12px;bottom:12px;display:flex;gap:10px;flex-wrap:wrap;pointer-events:auto}
+    button{border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.6);color:#fff;border-radius:14px;
+      padding:12px 14px;font-weight:700;cursor:pointer}
+    button:disabled{opacity:.45;cursor:not-allowed}
+    .log{position:fixed;left:12px;right:12px;bottom:70px;max-height:120px;overflow:auto;
+      background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:10px 12px;font-size:13px;pointer-events:auto}
+  </style>
+</head>
+
+<body>
+
+  <!-- ORCO 3D (de ejemplo). Cambiá src por tu orco .glb cuando lo tengas -->
+  <model-viewer
+  src="https://modelviewer.dev/shared-assets/models/Monster.glb"
+  alt="Orco AR"
+  ar
+  ar-modes="webxr scene-viewer quick-look"
+  camera-controls
+  ar-scale="auto"
+  shadow-intensity="0.7"
+  exposure="1"
+></model-viewer>
+
+  <div class="ui">
+    <div class="panel">
+      <div class="title">🧙‍♂️ Vos</div>
+      <div class="bar"><div id="pFill" class="fill"></div></div>
+      <div id="pHp" class="hp"></div>
+    </div>
+
+    <div class="panel">
+      <div class="title">👹 Orco</div>
+      <div class="bar"><div id="eFill" class="fill"></div></div>
+      <div id="eHp" class="hp"></div>
+    </div>
+  </div>
+
+  <div id="log" class="log"></div>
+
+  <div class="actions">
+    <button id="btnMagic">✨ Magia</button>
+    <button id="btnHit">🪄 Golpe</button>
+    <button id="btnDef">🛡️ Defender</button>
+    <button id="btnReset" style="margin-left:auto">🔁 Reiniciar</button>
+  </div>
+
+<script>
+  const state = {
+    pMax: 100, p: 100,
+    eMax: 120, e: 120,
+    playerTurn: true,
+    defending: false,
+    over: false
+  };
+
+  const pFill = document.getElementById('pFill');
+  const eFill = document.getElementById('eFill');
+  const pHp = document.getElementById('pHp');
+  const eHp = document.getElementById('eHp');
+  const logEl = document.getElementById('log');
+  const btnMagic = document.getElementById('btnMagic');
+  const btnHit = document.getElementById('btnHit');
+  const btnDef = document.getElementById('btnDef');
+  const btnReset = document.getElementById('btnReset');
+
+  function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
+  function rnd(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+
+  function setBar(el, ratio){
+    el.style.width = `${Math.round(ratio*100)}%`;
+    el.style.background = ratio > .5 ? '#3ddc84' : ratio > .2 ? '#f4c542' : '#ff4d4d';
+    el.style.transition = 'width 180ms ease';
+  }
+
+  function logLine(t){
+    const div = document.createElement('div');
+    div.textContent = t;
+    logEl.appendChild(div);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function update(){
+    setBar(pFill, state.p/state.pMax);
+    setBar(eFill, state.e/state.eMax);
+    pHp.textContent = `HP: ${state.p}/${state.pMax}`;
+    eHp.textContent = `HP: ${state.e}/${state.eMax}`;
+
+    const disable = !state.playerTurn || state.over;
+    btnMagic.disabled = disable;
+    btnHit.disabled = disable;
+    btnDef.disabled = disable;
+  }
+
+  function end(win){
+    state.over = true;
+    logLine(win ? '🏆 Ganaste.' : '💀 Perdiste.');
+    update();
+  }
+
+  function enemyTurn(){
+    state.playerTurn = false;
+    update();
+
+    setTimeout(() => {
+      if (state.over) return;
+
+      let dmg = rnd(10, 20);
+      if (state.defending){
+        dmg = Math.floor(dmg * 0.5);
+        state.defending = false;
+        logLine('🛡️ Defensa activa: daño reducido.');
+      }
+
+      state.p = clamp(state.p - dmg, 0, state.pMax);
+      logLine(`👹 El orco ataca y te quita ${dmg} HP.`);
+
+      if (state.p <= 0) return end(false);
+
+      state.playerTurn = true;
+      update();
+    }, 750);
+  }
+
+  function playerAttack(kind){
+    if (!state.playerTurn || state.over) return;
+
+    let dmg = kind === 'magic' ? rnd(18, 32) : rnd(10, 16);
+    logLine(kind === 'magic'
+      ? `✨ Lanzás magia y quitás ${dmg} HP.`
+      : `🪄 Golpeás y quitás ${dmg} HP.`);
+
+    state.e = clamp(state.e - dmg, 0, state.eMax);
+    update();
+    if (state.e <= 0) return end(true);
+
+    enemyTurn();
+  }
+
+  function defend(){
+    if (!state.playerTurn || state.over) return;
+    state.defending = true;
+    logLine('🛡️ Te defendés. El próximo ataque hará menos daño.');
+    enemyTurn();
+  }
+
+  function reset(){
+    state.p = state.pMax;
+    state.e = state.eMax;
+    state.playerTurn = true;
+    state.defending = false;
+    state.over = false;
+    logEl.innerHTML = '';
+    logLine('⚔️ Combate iniciado. Tocá "Ver en AR" y luego atacá.');
+    update();
+  }
+
+  btnMagic.onclick = () => playerAttack('magic');
+  btnHit.onclick = () => playerAttack('hit');
+  btnDef.onclick = () => defend();
+  btnReset.onclick = () => reset();
+
+  reset();
+</script>
+</body>
+</html>

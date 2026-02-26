@@ -2,53 +2,138 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AR Battle Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Juego AR por Turnos</title>
 
+  <!-- Model Viewer -->
   <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
 
   <style>
-    body{margin:0;font-family:system-ui;background:#000;color:#fff;overflow:hidden}
-    model-viewer{width:100vw;height:100vh;background:#000}
-    .ui{position:fixed;left:12px;right:12px;top:12px;display:flex;gap:12px;align-items:flex-start;justify-content:space-between;pointer-events:none}
-    .panel{background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.12);backdrop-filter: blur(8px);
-      border-radius:14px;padding:10px 12px;min-width:160px;pointer-events:auto}
-    .title{font-weight:800;margin-bottom:6px;font-size:14px}
-    .bar{height:12px;background:rgba(255,255,255,.12);border-radius:999px;overflow:hidden}
-    .fill{height:100%;width:100%}
-    .hp{font-size:12px;opacity:.9;margin-top:6px}
-    .actions{position:fixed;left:12px;right:12px;bottom:12px;display:flex;gap:10px;flex-wrap:wrap;pointer-events:auto}
-    button{border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.6);color:#fff;border-radius:14px;
-      padding:12px 14px;font-weight:700;cursor:pointer}
-    button:disabled{opacity:.45;cursor:not-allowed}
-    .log{position:fixed;left:12px;right:12px;bottom:70px;max-height:120px;overflow:auto;
-      background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:10px 12px;font-size:13px;pointer-events:auto}
+    body {
+      margin: 0;
+      font-family: system-ui, Arial, sans-serif;
+      background: #000;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    model-viewer {
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+    }
+
+    .hud {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .panel {
+      background: rgba(0,0,0,0.6);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      padding: 10px;
+      width: 45%;
+      pointer-events: auto;
+    }
+
+    .name {
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .bar {
+      height: 12px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .fill {
+      height: 100%;
+      width: 100%;
+      background: #3ddc84;
+      transition: width 0.2s ease;
+    }
+
+    .hp {
+      font-size: 12px;
+      margin-top: 4px;
+      opacity: 0.85;
+    }
+
+    .actions {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(0,0,0,0.65);
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .log {
+      position: fixed;
+      bottom: 80px;
+      left: 10px;
+      right: 10px;
+      max-height: 120px;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      padding: 8px;
+      font-size: 13px;
+    }
   </style>
 </head>
 
 <body>
 
-  <!-- ORCO 3D (de ejemplo). Cambiá src por tu orco .glb cuando lo tengas -->
+  <!-- MODELO 3D (funciona sin descargar nada) -->
   <model-viewer
-  src="https://modelviewer.dev/shared-assets/models/Monster.glb"
-  alt="Orco AR"
-  ar
-  ar-modes="webxr scene-viewer quick-look"
-  camera-controls
-  ar-scale="auto"
-  shadow-intensity="0.7"
-  exposure="1"
-></model-viewer>
+    src="https://modelviewer.dev/shared-assets/models/Monster.glb"
+    ios-src="https://modelviewer.dev/shared-assets/models/Astronaut.usdz"
+    alt="Orco AR"
+    ar
+    ar-modes="webxr scene-viewer quick-look"
+    ar-scale="auto"
+    camera-controls
+    shadow-intensity="0.7"
+    exposure="1">
+  </model-viewer>
 
-  <div class="ui">
+  <!-- HUD -->
+  <div class="hud">
     <div class="panel">
-      <div class="title">🧙‍♂️ Vos</div>
+      <div class="name">🧙‍♂️ Vos</div>
       <div class="bar"><div id="pFill" class="fill"></div></div>
       <div id="pHp" class="hp"></div>
     </div>
 
     <div class="panel">
-      <div class="title">👹 Orco</div>
+      <div class="name">👹 Orco</div>
       <div class="bar"><div id="eFill" class="fill"></div></div>
       <div id="eHp" class="hp"></div>
     </div>
@@ -56,127 +141,133 @@
 
   <div id="log" class="log"></div>
 
+  <!-- BOTONES -->
   <div class="actions">
     <button id="btnMagic">✨ Magia</button>
     <button id="btnHit">🪄 Golpe</button>
-    <button id="btnDef">🛡️ Defender</button>
-    <button id="btnReset" style="margin-left:auto">🔁 Reiniciar</button>
+    <button id="btnDef">🛡 Defender</button>
+    <button id="btnReset">🔁 Reiniciar</button>
   </div>
 
 <script>
   const state = {
     pMax: 100, p: 100,
     eMax: 120, e: 120,
-    playerTurn: true,
+    turn: true,
     defending: false,
     over: false
   };
 
-  const pFill = document.getElementById('pFill');
-  const eFill = document.getElementById('eFill');
-  const pHp = document.getElementById('pHp');
-  const eHp = document.getElementById('eHp');
-  const logEl = document.getElementById('log');
-  const btnMagic = document.getElementById('btnMagic');
-  const btnHit = document.getElementById('btnHit');
-  const btnDef = document.getElementById('btnDef');
-  const btnReset = document.getElementById('btnReset');
+  const pFill = document.getElementById("pFill");
+  const eFill = document.getElementById("eFill");
+  const pHp = document.getElementById("pHp");
+  const eHp = document.getElementById("eHp");
+  const log = document.getElementById("log");
 
-  function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
-  function rnd(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+  const btnMagic = document.getElementById("btnMagic");
+  const btnHit = document.getElementById("btnHit");
+  const btnDef = document.getElementById("btnDef");
+  const btnReset = document.getElementById("btnReset");
 
-  function setBar(el, ratio){
-    el.style.width = `${Math.round(ratio*100)}%`;
-    el.style.background = ratio > .5 ? '#3ddc84' : ratio > .2 ? '#f4c542' : '#ff4d4d';
-    el.style.transition = 'width 180ms ease';
+  function clamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
   }
 
-  function logLine(t){
-    const div = document.createElement('div');
-    div.textContent = t;
-    logEl.appendChild(div);
-    logEl.scrollTop = logEl.scrollHeight;
+  function rnd(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
-  function update(){
-    setBar(pFill, state.p/state.pMax);
-    setBar(eFill, state.e/state.eMax);
+  function logLine(text) {
+    const d = document.createElement("div");
+    d.textContent = text;
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function updateUI() {
+    pFill.style.width = (state.p / state.pMax * 100) + "%";
+    eFill.style.width = (state.e / state.eMax * 100) + "%";
+
     pHp.textContent = `HP: ${state.p}/${state.pMax}`;
     eHp.textContent = `HP: ${state.e}/${state.eMax}`;
 
-    const disable = !state.playerTurn || state.over;
-    btnMagic.disabled = disable;
-    btnHit.disabled = disable;
-    btnDef.disabled = disable;
+    const disabled = !state.turn || state.over;
+    btnMagic.disabled = disabled;
+    btnHit.disabled = disabled;
+    btnDef.disabled = disabled;
   }
 
-  function end(win){
+  function endGame(win) {
     state.over = true;
-    logLine(win ? '🏆 Ganaste.' : '💀 Perdiste.');
-    update();
+    logLine(win ? "🏆 Ganaste el combate" : "💀 Fuiste derrotado");
+    updateUI();
   }
 
-  function enemyTurn(){
-    state.playerTurn = false;
-    update();
+  function enemyTurn() {
+    state.turn = false;
+    updateUI();
 
     setTimeout(() => {
       if (state.over) return;
 
       let dmg = rnd(10, 20);
-      if (state.defending){
-        dmg = Math.floor(dmg * 0.5);
+      if (state.defending) {
+        dmg = Math.floor(dmg / 2);
         state.defending = false;
-        logLine('🛡️ Defensa activa: daño reducido.');
+        logLine("🛡 Defensa activa, daño reducido");
       }
 
       state.p = clamp(state.p - dmg, 0, state.pMax);
-      logLine(`👹 El orco ataca y te quita ${dmg} HP.`);
+      logLine(`👹 El orco te ataca y quita ${dmg} HP`);
 
-      if (state.p <= 0) return end(false);
+      if (state.p <= 0) return endGame(false);
 
-      state.playerTurn = true;
-      update();
-    }, 750);
+      state.turn = true;
+      updateUI();
+    }, 700);
   }
 
-  function playerAttack(kind){
-    if (!state.playerTurn || state.over) return;
+  function attack(type) {
+    if (!state.turn || state.over) return;
 
-    let dmg = kind === 'magic' ? rnd(18, 32) : rnd(10, 16);
-    logLine(kind === 'magic'
-      ? `✨ Lanzás magia y quitás ${dmg} HP.`
-      : `🪄 Golpeás y quitás ${dmg} HP.`);
+    let dmg = type === "magic" ? rnd(18, 32) : rnd(10, 16);
+    logLine(type === "magic"
+      ? `✨ Lanzás magia y hacés ${dmg} daño`
+      : `🪄 Golpeás y hacés ${dmg} daño`);
 
     state.e = clamp(state.e - dmg, 0, state.eMax);
-    update();
-    if (state.e <= 0) return end(true);
+    updateUI();
+
+    if (state.e <= 0) return endGame(true);
 
     enemyTurn();
   }
 
-  function defend(){
-    if (!state.playerTurn || state.over) return;
+  btnMagic.onclick = () => attack("magic");
+  btnHit.onclick = () => attack("hit");
+  btnDef.onclick = () => {
+    if (!state.turn || state.over) return;
     state.defending = true;
-    logLine('🛡️ Te defendés. El próximo ataque hará menos daño.');
+    logLine("🛡 Te defendés");
     enemyTurn();
-  }
+  };
 
-  function reset(){
+  btnReset.onclick = () => {
     state.p = state.pMax;
     state.e = state.eMax;
-    state.playerTurn = true;
+    state.turn = true;
     state.defending = false;
     state.over = false;
-    logEl.innerHTML = '';
-    logLine('⚔️ Combate iniciado. Tocá "Ver en AR" y luego atacá.');
-    update();
-  }
+    log.innerHTML = "";
+    logLine("⚔ Combate iniciado. Tocá AR y atacá.");
+    updateUI();
+  };
 
-  btnMagic.onclick = () => playerAttack('magic');
-  btnHit.onclick = () => playerAttack('hit');
-  btnDef.onclick = () => defend();
-  btnReset.onclick = () => reset();
+  btnReset.click();
+</script>
+
+</body>
+</html>
 
   reset();
 </script>
